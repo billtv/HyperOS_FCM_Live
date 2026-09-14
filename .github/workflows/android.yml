@@ -7,6 +7,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
 
@@ -38,16 +41,45 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Build with Gradle
-        run: ./gradlew assemble
+        run: ./gradlew --no-daemon :HyperFCMLive:assembleRelease :HyperFCMLive:assembleDebug
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v7
         with:
+          name: hyperos-fcm-live-release
           path: HyperFCMLive/build/outputs/apk/release/*.apk
-          archive: false
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Upload debug artifact
         uses: actions/upload-artifact@v7
         with:
+          name: hyperos-fcm-live-debug
           path: HyperFCMLive/build/outputs/apk/debug/*.apk
-          archive: false
+          if-no-files-found: error
+          retention-days: 30
+
+  nightly-release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download release APK
+        uses: actions/download-artifact@v4
+        with:
+          name: hyperos-fcm-live-release
+          path: release
+
+      - name: Publish nightly release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: HyperOS FCM Live Nightly
+          prerelease: true
+          make_latest: false
+          target_commitish: ${{ github.sha }}
+          files: release/*.apk
+          fail_on_unmatched_files: true
